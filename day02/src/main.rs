@@ -5,6 +5,8 @@
 
 use std::fs;
 
+use anyhow::anyhow;
+use itertools::multiunzip;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -35,7 +37,7 @@ fn main() -> anyhow::Result<()> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let total: u32 = games
+    let id_total: u32 = games
         .iter()
         .filter(|game| {
             game.subsets
@@ -51,7 +53,32 @@ fn main() -> anyhow::Result<()> {
         .map(|game| game.id)
         .sum();
 
-    println!("Part one answer: {total}");
+    println!("Part one answer: {id_total}");
+
+    let power_total: Option<u32> = games
+        .iter()
+        .map(|game| {
+            let counts: Vec<_> = game
+                .subsets
+                .iter()
+                .map(|subset| (subset.red, subset.green, subset.blue))
+                .collect();
+            let (red_counts, green_counts, blue_counts): (Vec<_>, Vec<_>, Vec<_>) =
+                multiunzip(counts);
+
+            let min_red = red_counts.into_iter().max();
+            let min_green = blue_counts.into_iter().max();
+            let min_blue = green_counts.into_iter().max();
+
+            min_red
+                .and_then(|red| min_green.map(|green| red * green))
+                .and_then(|total| min_blue.map(|blue| total * blue))
+        })
+        .sum();
+
+    let power_total = power_total.ok_or_else(|| anyhow!("no maximum cube count found"))?;
+
+    println!("Part two answer: {power_total}");
 
     Ok(())
 }
