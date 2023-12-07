@@ -3,55 +3,77 @@
 #![forbid(clippy::panic)]
 #![forbid(unsafe_code)]
 
-use std::{collections::HashSet, fs};
+use std::{collections::HashMap, fs};
 
+use anyhow::anyhow;
 use regex::Regex;
 use utilities::workspace_root;
 
 fn main() -> anyhow::Result<()> {
     let input = fs::read_to_string(workspace_root()?.join("inputs/day03"))?;
 
-    let symbol_coords: HashSet<_> = input
+    let mut symbol_coords: HashMap<_, Vec<u32>> = input
         .lines()
         .enumerate()
         .flat_map(|(i, line)| {
             line.char_indices()
                 .filter(|(_, c)| !(c.is_ascii_digit() || *c == '.'))
-                .map(move |(j, _)| (i as i64, j as i64))
+                .map(move |(j, _)| ((i as i64, j as i64), Vec::new()))
         })
         .collect();
 
-    let digit_re = Regex::new(r"\d+")?;
+    let re = Regex::new(r"\d+")?;
 
-    let part_numbers = input
-        .lines()
-        .enumerate()
-        .flat_map(|(i, line)| {
-            let symbol_coords = &symbol_coords;
-            digit_re
-                .find_iter(line)
-                .filter(move |r#match| {
-                    let i = i as i64;
-                    let start = r#match.start() as i64;
-                    let end = r#match.end() as i64;
+    for (i, line) in input.lines().enumerate() {
+        let i = i as i64;
+        for r#match in re.find_iter(line) {
+            let start = r#match.start() as i64;
+            let end = r#match.end() as i64;
+            let part_number: u32 = r#match.as_str().parse()?;
 
-                    let mut is_part_number = (start - 1..=end)
-                        .flat_map(|j| [(i - 1, j), (i + 1, j)].into_iter())
-                        .any(|pair| symbol_coords.contains(&pair));
+            for j in start - 1..=end {
+                if symbol_coords.contains_key(&(i - 1, j)) {
+                    symbol_coords
+                        .get_mut(&(i - 1, j))
+                        .ok_or_else(|| anyhow!("symbol table must contain coordinates"))?
+                        .push(part_number);
+                }
+                if symbol_coords.contains_key(&(i + 1, j)) {
+                    symbol_coords
+                        .get_mut(&(i + 1, j))
+                        .ok_or_else(|| anyhow!("symbol table must contain coordinates"))?
+                        .push(part_number);
+                }
+            }
+            if symbol_coords.contains_key(&(i, start - 1)) {
+                symbol_coords
+                    .get_mut(&(i, start - 1))
+                    .ok_or_else(|| anyhow!("symbol table must contain coordinates"))?
+                    .push(part_number);
+            }
+            if symbol_coords.contains_key(&(i, end)) {
+                symbol_coords
+                    .get_mut(&(i, end))
+                    .ok_or_else(|| anyhow!("symbol table must contain coordinates"))?
+                    .push(part_number);
+            }
+        }
+    }
 
-                    is_part_number = is_part_number
-                        || (symbol_coords.contains(&(i, start - 1))
-                            || symbol_coords.contains(&(i, end)));
+    let part_number_sum: u32 = symbol_coords
+        .values()
+        .map(|list| list.iter().sum::<u32>())
+        .sum();
 
-                    is_part_number
-                })
-                .map(|r#match| r#match.as_str().parse::<u32>())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    println!("Part one answer: {part_number_sum}");
 
-    let part_sum: u32 = part_numbers.iter().sum();
+    let gear_ratio_sum: u32 = symbol_coords
+        .values()
+        .filter(|list| list.len() == 2)
+        .map(|list| list.iter().product::<u32>())
+        .sum();
 
-    println!("Part one answer: {part_sum}");
+    println!("Part two answer: {gear_ratio_sum}");
 
     Ok(())
 }
